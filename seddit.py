@@ -6,24 +6,27 @@ NameCounter.py
 """
 
 # Libraries
+import csv
 import json
 import os
 import re as regex
 import time
 import praw
 
-# ===== Script constants
 
-# The 100 most common words in the english language.
-# These will be ignored in the notable noun search
-COMMON_NOUNS = ["a", "about", "all", "also", "and", "as", "at", "be", "because", "but", "by", "can", "come",
-                "could", "day", "do", "even", "find", "first", "for", "from", "get", "give", "go", "have",
-                "he", "her", "here", "him", "his", "how", "I", "if", "in", "into", "it", "its", "just", "know",
-                "like", "look", "make", "man", "many", "me", "more", "my", "new", "no", "not", "now", "of", "on",
-                "one", "only", "or", "other", "our", "out", "people", "say", "see", "she", "so", "some", "take",
-                "tell", "than", "that", "the", "their", "them", "then", "there", "these", "they", "thing",
-                "think", "this", "those", "time", "to", "two", "up", "use", "very", "want", "way", "we", "well",
-                "what", "when", "which", "who", "will", "with", "would", "year", "you", "your"]
+def ingest_csv(csv_path: str, delimiter: str=',') -> [[str]]:
+    """
+
+    :param csv_path: The path to the csv file
+    :param delimiter: The character which divides cells in the file's csv encoding. Defaults to ','
+    :return: [[str]] - A list of rows, each of which is a list of the cells in that row
+    """
+    contents = []
+    with open(csv_path, newline='') as csv_file:
+        reader = csv.reader(csv_file, delimiter=delimiter)
+        for row in reader:
+            contents.append(list(row))
+    return contents
 
 
 def scrape_subreddit(subreddit: praw.reddit, feed_limit: int):
@@ -89,14 +92,13 @@ def sorted_dict(dictionary, reverse=True):
     return sorted(dictionary.items(), reverse=reverse, key=lambda x: (x[1], x[0]))
 
 
-def proper_noun_search(post_titles: list, filter_common: bool = True):
+def proper_noun_search(post_titles: list, filter_words: [str]=None):
     """
     Finds a count of every proper noun which appears in a list of
     titles more than a certain number of times
 
     :param post_titles: The list of post titles
-    :param filter_common: Whether to filter common English words from the results
-                            Defaults to `True`
+    :param filter_words: A list of words to remove from the results list
     :returns: A list of (word: str, count: int) tuples
     """
     # Counter for all other proper nouns
@@ -114,8 +116,8 @@ def proper_noun_search(post_titles: list, filter_common: bool = True):
             else:
                 noun_count[noun] = 1
 
-    if filter_common:  # Filter common words
-        return keys_ignored(noun_count, COMMON_NOUNS)
+    if filter_words:  # Filter common words
+        return keys_ignored(noun_count, filter_words)
     return noun_count
 
 
