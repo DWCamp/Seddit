@@ -1,4 +1,4 @@
-# Seddit v0.1
+# Seddit v0.2
 A Python Script for counting the number of instances a collection of terms get said on different subreddits
 
 ## Set up
@@ -9,4 +9,4 @@ A Python Script for counting the number of instances a collection of terms get s
 
 ## Helpful links
 
-* [Setting up Reddit user agent and key](https://github.com/reddit-archive/reddit/wiki/OAuth2-Quick-Start-Example#first-steps)
+* [Acquiring Client ID and Secret](https://www.reddit.com/prefs/apps)

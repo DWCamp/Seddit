@@ -1,4 +1,13 @@
-from seddit import *
+import argparse
+import math
+import csv
+import praw
+
+from config import *
+import seddit
+
+DESCRIPTION = "A Python Script for counting the number of instances " \
+              "a collection of terms get said on different subreddits"
 
 if __name__ == "__main__":
     """
@@ -13,16 +22,16 @@ if __name__ == "__main__":
 
         After this popularity data is collected, it is printed to stdout and
         the top ranking names are displayed as a bar chart
-        """
+    """
     parser = argparse.ArgumentParser(description=DESCRIPTION)
-    parser.add_argument('namefile', type=str, help='The path to a CSV file containing the search terms')
     parser.add_argument('subreddit', type=str, help='The subreddit being searched')
-    parser.add_argument('-bg', '--graph', help='Display a bar graph of the results', action="store_true")
+    parser.add_argument('-n',
+                        '--namefile',
+                        type=str,
+                        default=None,
+                        help='The path to a CSV file containing a list of search terms')
+    parser.add_argument('-g', '--graph', help='Display a bar graph of the results', action="store_true")
     parser.add_argument('-cf', type=str, default=CACHE_FILE_PATH, help='The path to a custom cache file')
-    parser.add_argument('-pn',
-                        '--noun-search',
-                        help='Print a list of common, non-name proper nouns in the search results',
-                        action="store_true")
     parser.add_argument('-fl', '--feed-limit', type=int, default=None, help='Sets the fetch limit for each feed')
     parser.add_argument('-t',
                         '--threshold',
@@ -43,15 +52,15 @@ if __name__ == "__main__":
     cache_ttl = args.ttl if args.ttl >= 0 else None
     # Set notability threshold
     if args.threshold:
-        notability_threshold = args.threshold
+        threshold = args.threshold
     else:
-        notability_threshold = 8 if feed_limit is None else math.log(feed_limit)
+        threshold = 8 if feed_limit is None else math.log(feed_limit)
 
     # ============================================================= Load data
     print("\n---------------------------------------\n")
 
     # Load from cache if cache is valid
-    titles = read_from_cache(cache_path, sub_name, feed_limit, ttl=cache_ttl)
+    titles = seddit.read_from_cache(cache_path, sub_name, feed_limit, ttl=cache_ttl)
     if titles is None:
         # Scrape from reddit
         print("Scraping from Reddit...")
@@ -59,46 +68,41 @@ if __name__ == "__main__":
                              client_secret=CLIENT_SECRET,
                              user_agent=USER_AGENT)
         subreddit = reddit.subreddit(sub_name)
-        titles = scrape_subreddit(subreddit, feed_limit)
-        save_to_cache(cache_path, sub_name, feed_limit, titles)
+        titles = seddit.scrape_subreddit(subreddit, feed_limit)
+        seddit.save_to_cache(cache_path, sub_name, feed_limit, titles)
 
-    # ========================================================= Name Search
+    # ========================================================= Perform search
     print("\n---------------------------------------\n")
 
-    names = []
+    if csv_path:  # Run name search if csv path defined
+        # Ingest name list
+        names = []
+        with open(csv_path, newline='') as csv_file:
+            reader = csv.reader(csv_file, delimiter=',')
+            for row in reader:
+                names.append(list(row))
 
-    with open(csv_path, newline='') as csvfile:
-        reader = csv.reader(csvfile, delimiter=',')
-        for row in reader:
-            names.append(list(row))
+        result_dictionary = seddit.name_search(titles, names)
+    else:
+        result_dictionary = seddit.proper_noun_search(titles)
 
-    sorted_tuples = name_search(titles, names)
-    # Print rankings to stdout
-    print("Name rankings:\n")
-    for name, count in sorted_tuples:
-        print("{} - {}".format(name, count))
+    # Remove entries that don't meet a threshold
+    if threshold is not None:
+        # Filter non-notable entries
+        result_dictionary = seddit.filtered_dict(result_dictionary, threshold)
 
-    # ======================================================== Proper noun search
-
-    if args.noun_search:
-        print("\n---------------------------------------\n")
-
-        noun_tuples = proper_noun_search(titles, threshold=notability_threshold, name_list=names)
-
-        # Print nouns
-        print("Notable nouns:\n")
-        for noun, count in noun_tuples:
-            print("{} - {}".format(noun, count))
-
-        if not noun_tuples:  # Print placeholder if there were no nouns
-            print("  None.")
+    sorted_tuples = seddit.sorted_dict(result_dictionary)
 
     # ========================================================== Display Findings
-    print("\n---------------------------------------\n")
+
+    # Print rankings to stdout
+    print("Popularity score:\n")
+    for name, count in sorted_tuples:
+        print("{} - {}".format(name, count))
 
     # Create bar chart
     sorted_tuples = sorted_tuples[:RANK_THRESHOLD]  # Trim results list
 
     # Present graph if requested
     if args.graph:
-        show_bar_chart(sorted_tuples, "Character Mentions on /r/" + sub_name)
+        seddit.show_bar_chart(sorted_tuples, "Character Mentions on /r/" + sub_name)

@@ -6,22 +6,13 @@ NameCounter.py
 """
 
 # Libraries
-import argparse
-import csv
 import json
-import math
 import os
 import re as regex
 import time
 import praw
 
-# Config values
-from config import *
-
 # ===== Script constants
-
-DESCRIPTION = "A Python Script for counting the number of instances " \
-              "a collection of terms get said on different subreddits"
 
 # The 100 most common words in the english language.
 # These will be ignored in the notable noun search
@@ -70,9 +61,7 @@ def filtered_dict(dictionary: dict, threshold, invert: bool = False):
     :param invert: Whether to invert the threshold (remove elements above threshold)
     :return: The filtered dictionary
     """
-    if invert:
-        return {key: value for (key, value) in dictionary.items() if value < threshold}
-    return {key: value for (key, value) in dictionary.items() if value >= threshold}
+    return {key: value for (key, value) in dictionary.items() if (value < threshold) == invert}
 
 
 def keys_ignored(dictionary: dict, remove: [str]):
@@ -100,46 +89,34 @@ def sorted_dict(dictionary, reverse=True):
     return sorted(dictionary.items(), reverse=reverse, key=lambda x: (x[1], x[0]))
 
 
-def proper_noun_search(post_titles: list, threshold: int, name_list: list, filter_common: bool = True):
+def proper_noun_search(post_titles: list, filter_common: bool = True):
     """
     Finds a count of every proper noun which appears in a list of
     titles more than a certain number of times
 
     :param post_titles: The list of post titles
-    :param threshold: Nouns which appear fewer than this many times will be
-                      filtered from the results
-    :param name_list: The list of names
     :param filter_common: Whether to filter common English words from the results
                             Defaults to `True`
-    :returns: A list of (word: str, count: int) tuples. These tuples are sorted
-                by count and then alphabetically by word
+    :returns: A list of (word: str, count: int) tuples
     """
     # Counter for all other proper nouns
     noun_count = {}
 
     # Find every proper noun in the tiles and log them
     for title in post_titles:
-        results = regex.findall(r'\b[A-Z][\w]*\b', title)
+        results = regex.findall(r'\b[A-Z][\w.]*\b', title)
         if not results:
             continue
 
         for noun in results:
             if noun in noun_count:
                 noun_count[noun] += 1
-            elif names and not any(noun in sublist for sublist in names):  # Don't record nouns already marked as names
+            else:
                 noun_count[noun] = 1
 
-    # ======== Filter
-
-    # Set notable threshold if undefined
-    if threshold is not None:
-        # Filter non-notable entries
-        noun_count = filtered_dict(noun_count, threshold)
-
     if filter_common:  # Filter common words
-        noun_count = keys_ignored(noun_count, COMMON_NOUNS)
-
-    return sorted_dict(noun_count)  # Sort the dictionary but value and key
+        return keys_ignored(noun_count, COMMON_NOUNS)
+    return noun_count
 
 
 def name_search(post_titles: list, names: list):
@@ -150,8 +127,7 @@ def name_search(post_titles: list, names: list):
     :param post_titles: The list of post titles
     :param names: The name list. Each element is a list of strings that all count
                     as instances of the primary name, which is the first element
-    :returns: A list of (name: str, count: int) tuples. These tuples are sorted
-                by count and then alphabetically by name
+    :returns: A list of (name: str, count: int) tuples
     """
 
     # Create the counter table
@@ -173,7 +149,7 @@ def name_search(post_titles: list, names: list):
                 name_count[name_key] += 1
 
     name_count = filtered_dict(name_count, 1)  # Filter names that weren't seen
-    return sorted_dict(name_count)  # Sort the dictionary but value and key and return it
+    return name_count  # Sort the dictionary but value and key and return it
 
 
 def read_from_cache(filepath: str, subreddit: str, limit_setting, ttl: int = 3600):
@@ -276,7 +252,7 @@ def show_bar_chart(data: list, graph_title: str):
     # Create bar chart
     y_pos = [*range(len(categories))]
     plt.bar(y_pos, values, align='center')
-    plt.xticks(y_pos, categories, rotation=40)
+    plt.xticks(y_pos, categories, rotation=50)
     plt.title(graph_title)
     plt.ylabel("Occurrences")
     plt.show()
