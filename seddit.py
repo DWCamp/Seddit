@@ -148,7 +148,6 @@ def name_search(post_titles: list, names: list):
             if regex.search(name_reg_str, title, regex.IGNORECASE):
                 name_count[name_key] += 1
 
-    name_count = filtered_dict(name_count, 1)  # Filter names that weren't seen
     return name_count  # Sort the dictionary but value and key and return it
 
 

@@ -37,7 +37,8 @@ if __name__ == "__main__":
                         '--threshold',
                         type=int,
                         default=None,
-                        help='Sets the threshold for proper noun search. Defaults to a fraction of the feed limit')
+                        help='Sets the threshold for search, below which a result will be ignored. Defaults to {} '
+                             'for general search, defaults to 0 for namefile search'.format(DEFAULT_THRESHOLD))
     parser.add_argument('-ttl',
                         type=int,
                         default=3600,
@@ -50,11 +51,11 @@ if __name__ == "__main__":
     cache_path = args.cf
     feed_limit = args.feed_limit
     cache_ttl = args.ttl if args.ttl >= 0 else None
-    # Set notability threshold
+    # Set filter threshold
     if args.threshold:
         threshold = args.threshold
     else:
-        threshold = 8 if feed_limit is None else math.log(feed_limit)
+        threshold = 0 if args.namefile else DEFAULT_THRESHOLD
 
     # ============================================================= Load data
     print("\n---------------------------------------\n")

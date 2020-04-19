@@ -10,6 +10,9 @@ USER_AGENT = "Seddit v0.1"
 # Where to save the cache file
 CACHE_FILE_PATH = "sedditCache.json"
 
+# The default threshold for filtering out rare results
+DEFAULT_THRESHOLD = 5
+
 # The minimum rank to show on the graph
 # For all results, set to -1
 RANK_THRESHOLD = 15
