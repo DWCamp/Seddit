@@ -254,4 +254,5 @@ def show_bar_chart(data: list, graph_title: str):
     plt.xticks(y_pos, categories, rotation=50)
     plt.title(graph_title)
     plt.ylabel("Occurrences")
+    plt.tight_layout()
     plt.show()
