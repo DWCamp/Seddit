@@ -8,11 +8,13 @@ Executes a Seddit search
 """
 
 import argparse
-import praw
+import json
 
+import praw
 import utils
 import searchCache
-from config import *
+
+CONFIG_FILE = "config.json"
 
 if __name__ == "__main__":
     """
@@ -28,7 +30,10 @@ if __name__ == "__main__":
         After this popularity data is collected, it is printed to stdout and
         the top ranking names are displayed as a bar chart
     """
-    parser = argparse.ArgumentParser(description=DESCRIPTION)
+    with open(CONFIG_FILE, 'r') as fp:
+        config = json.load(fp)
+
+    parser = argparse.ArgumentParser(description=config["description"])
 
     parser.add_argument('subreddit', type=str, help='Defines the subreddit being searched.')
 
@@ -89,47 +94,59 @@ if __name__ == "__main__":
                         type=int,
                         default=None,
                         help='Sets the threshold for search, below which a result will be ignored. Defaults to {} '
-                             'for general search and 0 when using a search term file'.format(DEFAULT_THRESHOLD))
+                             'for general search and 0 when using a search term file'.format(config["threshold"]))
 
     parser.add_argument('--version',
                         action="version",
-                        version=VERSION)
+                        version=config["version"])
 
     args = parser.parse_args()
+
+    # Overwrite default config values if present
+    if args.config:
+        with open(args.config, 'r') as fp:
+            data = json.load(fp)
+            for attr in data:
+                if attr not in config:  # Throw error if file has foreign key
+                    raise ValueError("Found unrecognized key `{}` in config file `{}`".format(attr, args.config))
+                config[attr] = data[attr]
 
     # Set script values based on arguments and config values
     parse_all = args.all
     csv_path = args.search_terms
     feed_limit = args.feed_limit
-    feeds = args.feeds if args.feeds else ENABLED_FEEDS
+    feeds = args.feeds if args.feeds else config["enabled_feeds"]
     force = True if args.force else False
     sub_name = args.subreddit
-    word_filter_path = None if args.no_filter else FILTERED_WORDS_FILE
+    word_filter_path = None if args.no_filter else config["filtered_words_file"]
     if args.threshold:  # If argument passed, use it for threshold
         threshold = args.threshold
     else:  # Otherwise set it to 0 for term search and DEFAULT THRESHOLD for proper noun search
-        threshold = 0 if args.search_terms else DEFAULT_THRESHOLD
+        threshold = 0 if args.search_terms else config["threshold"]
 
     # ============================================================= Load data
     print("---------------------------------------")
 
     # Load from cache if cache is valid
-    cache = searchCache.read_from_cache(CACHE_FILE_PATH, sub_name)
-    reddit = praw.Reddit(client_id=CLIENT_ID,
-                         client_secret=CLIENT_SECRET,
-                         user_agent=USER_AGENT)
+    cache = searchCache.read_from_cache(config["cache_file_path"], sub_name)
+    reddit = praw.Reddit(client_id=config["client_id"],
+                         client_secret=config["client_secret"],
+                         user_agent=config["user_agent"])
 
-    # Refresh all feeds enabled in config.py
+    # Refresh all feeds enabled in config.json
     updated = False  # Track whether any feed was updated
     if "hot" in feeds:
-        updated = cache.refresh_feed(reddit, "hot", ttl=CACHE_HOT_TTL, feed_limit=feed_limit, force=force) or updated
+        updated_hot = cache.refresh_feed(reddit, "hot", ttl=config["cache_hot_ttl"], feed_limit=feed_limit, force=force)
+        updated = updated or updated_hot
     if "new" in feeds:
-        updated = cache.refresh_feed(reddit, "new", ttl=CACHE_NEW_TTL, feed_limit=feed_limit, force=force) or updated
+        updated_new = cache.refresh_feed(reddit, "new", ttl=config["cache_new_ttl"], feed_limit=feed_limit, force=force)
+        updated = updated or updated_new
     if "top" in feeds:
-        updated = cache.refresh_feed(reddit, "top", ttl=CACHE_TOP_TTL, feed_limit=feed_limit, force=force) or updated
+        updated_top = cache.refresh_feed(reddit, "top", ttl=config["cache_top_ttl"], feed_limit=feed_limit, force=force)
+        updated = updated or updated_top
 
     if updated:
-        cache.save(CACHE_FILE_PATH)  # After refreshing, save cache
+        cache.save(config["cache_file_path"])  # After refreshing, save cache
     else:
         print("Loaded values from cache")
 
@@ -160,7 +177,7 @@ if __name__ == "__main__":
         print("{} - {}".format(name, count))
 
     # Create bar chart
-    sorted_tuples = sorted_tuples[:RANK_CUTOFF]  # Trim results list
+    sorted_tuples = sorted_tuples[:config["rank_cutoff"]]  # Trim results list
 
     # Present graph if requested
     if args.graph:

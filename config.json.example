@@ -1,0 +1,18 @@
+{
+    "version": "v0.4.0",
+    "description": "Seddit v0.4.0 - A Python Script for counting the number of instances a collection of terms get said on different subreddits",
+
+    "client_secret": "<Reddit API Client Secret>",
+    "client_id": "<Reddit API Client ID>",
+    "user_agent": "<platform>:<app ID>:<version string> (by u/<Reddit username>)",
+
+    "cache_file_path": "sedditCache.json",
+    "cache_hot_ttl": 14400,
+    "cache_new_ttl": 1800,
+    "cache_top_ttl": 2592000,
+    "enabled_feeds": ["hot", "top"],
+
+    "threshold": 5,
+    "filtered_words_file": "words.csv",
+    "rank_cutoff": 15
+}
