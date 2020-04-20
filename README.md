@@ -1,4 +1,4 @@
-# Seddit v0.3.0
+# Seddit v0.3.1
 A Python Script for counting the number of instances a collection of terms get said on different subreddits
 
 ## Set up

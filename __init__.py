@@ -130,4 +130,4 @@ if __name__ == "__main__":
 
     # Present graph if requested
     if args.graph:
-        seddit.show_bar_chart(sorted_tuples, "Character Mentions on /r/" + sub_name)
+        seddit.show_bar_chart(sorted_tuples, "Popularity on /r/" + sub_name)
