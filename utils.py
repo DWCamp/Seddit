@@ -70,17 +70,19 @@ def sorted_dict(dictionary, reverse=True):
     return sorted(dictionary.items(), reverse=reverse, key=lambda x: (x[1], x[0]))
 
 
-def proper_noun_search(post_titles: list, filter_words: [str]=None):
+def proper_noun_search(post_titles: list, term_groups=None, filter_words: [str]=None):
     """
     Finds a count of every proper noun which appears in a list of
     titles more than a certain number of times
 
     :param post_titles: The list of post titles
+    :param term_groups: A list of string lists, each defining a group of words that should be considered synonyms
     :param filter_words: A list of words to remove from the results list
     :returns: A list of (word: str, count: int) tuples
     """
     # Counter for all other proper nouns
     noun_count = {}
+    term_groups = term_groups if term_groups else []
 
     # Find every proper noun in the tiles and log them
     for title in post_titles:
@@ -93,6 +95,16 @@ def proper_noun_search(post_titles: list, filter_words: [str]=None):
                 noun_count[noun] += 1
             else:
                 noun_count[noun] = 1
+
+    # Group together the term groups
+    for group in term_groups:
+        group_name = group[0].lower
+        if group_name not in noun_count:  # Add group name to noun count if not there already
+            noun_count[group_name] = 0
+        for term in group:  # For every term in the group find it in the noun list
+            matching_keys = [key for key in noun_count if key.lower() == term.lower()]  # Find every match
+            for key in matching_keys:
+                noun_count[group_name] += noun_count[key]
 
     if filter_words:  # Filter common words
         return keys_ignored(noun_count, filter_words)
@@ -129,6 +141,27 @@ def name_search(post_titles: list, names: list):
                 name_count[name_key] += 1
 
     return name_count  # Sort the dictionary but value and key and return it
+
+
+def regex_trimed(string_list: [str], ignore: str=None, require: str=None):
+    """
+    Takes a list of strings and returns a list containing only those that
+    met the regex requirements
+
+    :param string_list: The list of strings
+    :param ignore: All elements matching this regex string will be removed
+    :param require: Only elements matching this regex string will be kept
+    """
+    old_len = len(string_list)
+    if ignore is not None:
+        string_list = [string for string in string_list if not regex.search(ignore, string)]
+        print("Removed {} strings through ignore regex".format(old_len - len(string_list)))
+    old_len = len(string_list)
+    if require is not None:
+        string_list = [string for string in string_list if regex.search(require, string)]
+        print("Removed {} strings through require regex".format(old_len - len(string_list)))
+    print(string_list[:10])
+    return string_list
 
 
 def show_bar_chart(data: list, graph_title: str):

@@ -37,12 +37,28 @@ if __name__ == "__main__":
 
     parser.add_argument('subreddit', type=str, help='Defines the subreddit being searched.')
 
-    parser.add_argument('-st',
-                        '--search-terms',
-                        type=str,
-                        default=None,
-                        help='The path to a CSV file containing a list of search terms.')
+    # Optional term lists
+    term_arg_group = parser.add_argument_group()
 
+    term_arg_group.add_argument('-st',
+                                '--search-terms',
+                                type=str,
+                                default=config["search_terms"],
+                                help='The path to a CSV file containing a list of search terms. Only these terms will '
+                                     'be searched for, and title matching will be matched case insensitive.')
+
+    term_arg_group.add_argument('-tg',
+                                '--term-group',
+                                type=str,
+                                default=config["term-group"],
+                                help='The path to a CSV file containing a list of search terms. Unlike --search-terms, '
+                                     'this will still perform a regular proper noun search. However, this list '
+                                     'specifies which words, if seen, should be considered synonyms (e.g. "Philly" and '
+                                     '"Philadelphia"). Will also unify inconsistent capitalization for words with that '
+                                     "spelling. Note: Only unifies groups after parsing words, so it won't find terms "
+                                     "with multiple words.")
+
+    # Other arguments
     parser.add_argument('-a',
                         '--all',
                         action="store_true",
@@ -54,7 +70,8 @@ if __name__ == "__main__":
                         type=str,
                         help="Supplies an additional configuration file for this execution. This file does not need to "
                              "define all required values. Any values that are defined will override the default "
-                             "configuration.")
+                             "configuration. By modifying the default values, this can also greatly simply your "
+                             "command line arguments.")
 
     parser.add_argument('--feeds',
                         nargs='*',
@@ -80,7 +97,7 @@ if __name__ == "__main__":
                         type=int,
                         default=None,
                         help='Sets the limit on the number of entries to return from each feed being searched on a '
-                             'subreddit. This defaults to "None", which will fetch as many entries as the Reddit API '
+                             'subreddit. This defaults to null, which will fetch as many entries as the Reddit API '
                              'will allow (around 1000). This could take a while, so for shorter run times consider '
                              'reducing this value to 50 or 100.')
 
@@ -112,12 +129,22 @@ if __name__ == "__main__":
                 config[attr] = data[attr]
 
     # Set script values based on arguments and config values
+
+    # `True` if word count should be performed on all posts in the subreddit, not just those in the feed
     parse_all = args.all
-    csv_path = args.search_terms
+    # The path to the search terms csv file
+    search_terms_path = args.search_terms
+    # The path to the term group csv file
+    term_group_path = args.term_group
+    # The feed limit
     feed_limit = args.feed_limit
+    # The list of feeds to scrape
     feeds = args.feeds if args.feeds else config["enabled_feeds"]
+    # Whether to force each feed to update regardless of cache validity
     force = True if args.force else False
+    # The name of the subreddit being scraped
     sub_name = args.subreddit
+    # The path to the word filter file
     word_filter_path = None if args.no_filter else config["filtered_words_file"]
     if args.threshold:  # If argument passed, use it for threshold
         threshold = args.threshold
@@ -152,15 +179,19 @@ if __name__ == "__main__":
 
     titles = cache.titles(feed_name_list=None if parse_all else feeds)  # Extract title list from cache
 
+    # Remove any titles from the anaylsis that don't meet the regex criteria
+    titles = utils.regex_trimed(titles, ignore=config["ignore_regex"], require=config["require_regex"])
+
     # ========================================================= Perform search
     print("---------------------------------------")
 
-    if csv_path:  # Run name search if csv path defined
-        names = utils.ingest_csv(csv_path)  # Ingest name list
+    if search_terms_path:  # Run name search if csv path defined
+        names = utils.ingest_csv(search_terms_path)  # Ingest name list
         result_dictionary = utils.name_search(titles, names)
     else:
+        term_groups = utils.ingest_csv(term_group_path) if term_group_path else None
         common_words = utils.ingest_csv(word_filter_path)[0] if word_filter_path else None
-        result_dictionary = utils.proper_noun_search(titles, common_words)
+        result_dictionary = utils.proper_noun_search(titles, term_group_path, common_words)
 
     # Remove entries that don't meet a threshold
     if threshold is not None:

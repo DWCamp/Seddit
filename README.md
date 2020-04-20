@@ -155,4 +155,10 @@ Additionally, a file containing some or all of these values can be passed in as 
 
 * **filtered_words_file** - The path to a CSV file containing words to filter out of noun search. The words should all be on the first line of the file. The included file contains the 250 most common words in the English language, to prevent words like 'The' and 'A' from dominating the results
 * **rank_cutoff** - The highest rank to show on the graph. For all results, set to -1
+* **search_terms** - Defines a default search terms file to use
 * **threshold** - The frequency threshold for filtering out obscure results
+
+#### Regex
+
+* **ignore_regex** - Posts that match this regex string will **not** be evaluated
+* **require_regex** - **Only** posts that match this regex string will be evaluated
