@@ -1,0 +1,163 @@
+"""
+utils.py
+
+Provides a number of functions for scraping subreddits
+and determining the frequency of words used in the titles
+of their posts.
+
+@author Daniel Campman
+@version 4/19/20
+"""
+
+# Libraries
+import csv
+import re as regex
+
+
+def ingest_csv(csv_path: str, delimiter: str=',', strip_spaces: bool=True) -> [[str]]:
+    """
+
+    :param csv_path: The path to the csv file
+    :param delimiter: The character which divides cells in the file's csv encoding. Defaults to ','
+    :param strip_spaces: Remove any spaces from the ends of each cell. Defaults to `True`
+    :return: [[str]] - A list of rows, each of which is a list of the cells in that row
+    """
+    contents = []
+    with open(csv_path, newline='') as csv_file:
+        reader = csv.reader(csv_file, delimiter=delimiter)
+        for row in reader:
+            if strip_spaces:
+                contents.append([cell.strip() for cell in row])
+            else:
+                contents.append(list(row))
+    return contents
+
+
+def filtered_dict(dictionary: dict, threshold, invert: bool = False):
+    """
+    Removes all keys from a dictionary whose value is less than a given threshold
+
+    :param dictionary: The dictionary to filter
+    :param threshold: The threshold below which to remove elements
+    :param invert: Whether to invert the threshold (remove elements above threshold)
+    :return: The filtered dictionary
+    """
+    return {key: value for (key, value) in dictionary.items() if (value < threshold) == invert}
+
+
+def keys_ignored(dictionary: dict, remove: [str]):
+    """
+    Performs an in-place removal of a list of string keys from
+    a given dictionary. This check is case-insensitive
+
+    :param dictionary: The dictionary to filter
+    :param remove: The keys to remove
+    :return: A copy of the dictionary with all items removed
+            whose key was in the list
+    """
+    remove = [key.lower() for key in remove]  # Make sure keys to remove are all lower
+    return {key: value for (key, value) in dictionary.items() if key.lower() not in remove}
+
+
+def sorted_dict(dictionary, reverse=True):
+    """
+    Returns the list of (key, value) tuples in a dictionary, sorted first
+    by value and then by key
+    :param dictionary: The dictionary to sort
+    :param reverse: Whether to reverse the sort
+    :return: A sorted list of (key, value) tuples
+    """
+    return sorted(dictionary.items(), reverse=reverse, key=lambda x: (x[1], x[0]))
+
+
+def proper_noun_search(post_titles: list, filter_words: [str]=None):
+    """
+    Finds a count of every proper noun which appears in a list of
+    titles more than a certain number of times
+
+    :param post_titles: The list of post titles
+    :param filter_words: A list of words to remove from the results list
+    :returns: A list of (word: str, count: int) tuples
+    """
+    # Counter for all other proper nouns
+    noun_count = {}
+
+    # Find every proper noun in the tiles and log them
+    for title in post_titles:
+        results = regex.findall(r'\b[A-Z][\w.]*\b', title)
+        if not results:
+            continue
+
+        for noun in results:
+            if noun in noun_count:
+                noun_count[noun] += 1
+            else:
+                noun_count[noun] = 1
+
+    if filter_words:  # Filter common words
+        return keys_ignored(noun_count, filter_words)
+    return noun_count
+
+
+def name_search(post_titles: list, names: list):
+    """
+    Searches the titles for instances of each name and returns
+    the number of instances each name was seen
+
+    :param post_titles: The list of post titles
+    :param names: The name list. Each element is a list of strings that all count
+                    as instances of the primary name, which is the first element
+    :returns: A list of (name: str, count: int) tuples
+    """
+
+    # Create the counter table
+    name_count = {}
+    for character in names:
+        name_count[character[0]] = 0
+
+    # Search for every character
+    for name_list in names:
+        name_key = name_list[0]
+
+        # Compile character's nicknames names into a `(<A>|<B>|...)` regex string
+        escaped_list = [regex.escape(name) for name in name_list]
+        name_reg_str = '\\b({})\\b'.format("|".join(escaped_list))
+
+        # Search every title for instance of character name
+        for title in post_titles:
+            if regex.search(name_reg_str, title, regex.IGNORECASE):
+                name_count[name_key] += 1
+
+    return name_count  # Sort the dictionary but value and key and return it
+
+
+def show_bar_chart(data: list, graph_title: str):
+    """
+    Displays a bar chart containing the data in a list of tuples
+
+    Note: this function requires matplotlib
+
+    :param data: The list of sorted (category, value) tuples
+    :param graph_title: The title of the graph
+    """
+
+    # Check that matplotlib can be is imported
+    try:
+        import matplotlib.pyplot as plt
+    except ImportError as ie:
+        print("Error: Failed to import matplotlib. Cannot display graph")
+        print(ie)
+        return
+
+    # Turn tuples into lists
+    categories = [category for category, value in data]
+    values = [value for category, value in data]
+
+    # Create bar chart
+    y_pos = [*range(len(categories))]
+    plt.bar(y_pos, values, align='center')
+    plt.xticks(y_pos, categories, rotation=50)
+    plt.title(graph_title)
+    plt.ylabel("Occurrences")
+    plt.tight_layout()
+    plt.show()
