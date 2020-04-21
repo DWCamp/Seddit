@@ -131,3 +131,4 @@ dmypy.json
 # Custom files
 config.py
 sedditCache.json
+alt_configs/

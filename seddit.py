@@ -1,260 +1,215 @@
 """
-NameCounter.py
+seddit.py
+
+Executes a Seddit search
 
 @author Daniel Campman
-@version 4/17/20
+@version 4/19/20
 """
 
-# Libraries
-import csv
+import argparse
 import json
-import os
-import re as regex
-import time
+
 import praw
+import utils
+import searchCache
 
+CONFIG_FILE = "config.json"
 
-def ingest_csv(csv_path: str, delimiter: str=',') -> [[str]]:
+if __name__ == "__main__":
     """
+        Name counter
 
-    :param csv_path: The path to the csv file
-    :param delimiter: The character which divides cells in the file's csv encoding. Defaults to ','
-    :return: [[str]] - A list of rows, each of which is a list of the cells in that row
+        Counts the instances of for several names in the top and hot feeds 
+        for a subreddit then ranks them in terms of popularity
+
+        Additionally finds all proper nouns that are not in the name list
+        that occur above a certain frequency to indicate a popular term that 
+        might be missing from your search list
+
+        After this popularity data is collected, it is printed to stdout and
+        the top ranking names are displayed as a bar chart
     """
-    contents = []
-    with open(csv_path, newline='') as csv_file:
-        reader = csv.reader(csv_file, delimiter=delimiter)
-        for row in reader:
-            contents.append(list(row))
-    return contents
+    with open(CONFIG_FILE, 'r') as fp:
+        config = json.load(fp)
 
+    parser = argparse.ArgumentParser(description=config["description"])
 
-def scrape_subreddit(subreddit: praw.reddit, feed_limit: int):
-    """
-    Scrapes the defined subreddit for the first N posts on the top
-    and hot feeds and returns a list of every title
+    parser.add_argument('subreddit', type=str, help='Defines the subreddit being searched.')
 
-    :param subreddit: The PRAW subreddit object to scrape
-    :param feed_limit: The number of posts to scrape off the top and
-                        hot feeds. Set to 'None' for maximum value
-    :return: The list of titles
-    """
-    print("Scraping /r/{}...".format(subreddit.display_name))
-    titles_set = set()
+    # Optional term lists
+    term_arg_group = parser.add_argument_group()
 
-    # Scrape top posts of all time
-    print("Getting top posts...")
-    for submission in subreddit.top(limit=feed_limit):
-        titles_set.add(submission.title)
+    term_arg_group.add_argument('-st',
+                                '--search-terms',
+                                type=str,
+                                default=config["search_terms"],
+                                help='The path to a CSV file containing a list of search terms. Only these terms will '
+                                     'be searched for, and title matching will be matched case insensitive.')
 
-    # Scrape hot posts
-    print("Getting hot posts...")
-    for submission in subreddit.hot(limit=feed_limit):
-        titles_set.add(submission.title)
+    term_arg_group.add_argument('-tg',
+                                '--term-group',
+                                type=str,
+                                default=config["term-group"],
+                                help='The path to a CSV file containing a list of search terms. Unlike --search-terms, '
+                                     'this will still perform a regular proper noun search. However, this list '
+                                     'specifies which words, if seen, should be considered synonyms (e.g. "Philly" and '
+                                     '"Philadelphia"). Will also unify inconsistent capitalization for words with that '
+                                     "spelling. Note: Only unifies groups after parsing words, so it won't find terms "
+                                     "with multiple words.")
 
-    return list(titles_set)
+    # Other arguments
+    parser.add_argument('-a',
+                        '--all',
+                        action="store_true",
+                        help="Refreshes all enabled feeds and then performs a search on every post stored in the "
+                             "subreddit's cache.")
 
+    parser.add_argument('-c',
+                        '--config',
+                        type=str,
+                        help="Supplies an additional configuration file for this execution. This file does not need to "
+                             "define all required values. Any values that are defined will override the default "
+                             "configuration. By modifying the default values, this can also greatly simply your "
+                             "command line arguments.")
 
-def filtered_dict(dictionary: dict, threshold, invert: bool = False):
-    """
-    Removes all keys from a dictionary whose value is less than a given threshold
+    parser.add_argument('--feeds',
+                        nargs='*',
+                        choices=['hot', 'new', 'top'],
+                        help="Performs a refresh on a specific list of feeds instead of the feeds enabled in the "
+                             "config file. If this list is empty, the regularly enabled feeds will be checked.")
 
-    :param dictionary: The dictionary to filter
-    :param threshold: The threshold below which to remove elements
-    :param invert: Whether to invert the threshold (remove elements above threshold)
-    :return: The filtered dictionary
-    """
-    return {key: value for (key, value) in dictionary.items() if (value < threshold) == invert}
+    parser.add_argument('-f',
+                        '--force',
+                        action="store_true",
+                        help="Forces a refresh of the subreddit's cache, regardless of age. Note: this will only "
+                             "affect the feeds that would normally be searched. It will not affect disabled feeds "
+                             "and if combined with the `--feeds` argument, it will only refresh a subset of feeds.")
 
+    parser.add_argument('-g',
+                        '--graph',
+                        action="store_true",
+                        help='After printing the results to the console, a bar graph is displayed. This requires '
+                             'matplotlib.')
 
-def keys_ignored(dictionary: dict, remove: [str]):
-    """
-    Performs an in-place removal of a list of string keys from
-    a given dictionary. This check is case-insensitive
+    parser.add_argument('-l',
+                        '--feed-limit',
+                        type=int,
+                        default=None,
+                        help='Sets the limit on the number of entries to return from each feed being searched on a '
+                             'subreddit. This defaults to null, which will fetch as many entries as the Reddit API '
+                             'will allow (around 1000). This could take a while, so for shorter run times consider '
+                             'reducing this value to 50 or 100.')
 
-    :param dictionary: The dictionary to filter
-    :param remove: The keys to remove
-    :return: A copy of the dictionary with all items removed
-            whose key was in the list
-    """
-    remove = [key.lower() for key in remove]  # Make sure keys to remove are all lower
-    return {key: value for (key, value) in dictionary.items() if key.lower() not in remove}
+    parser.add_argument('-nf',
+                        '--no-filter',
+                        action="store_true",
+                        help='Disables filtering of common words from general noun search.')
 
+    parser.add_argument('-th',
+                        '--threshold',
+                        type=int,
+                        default=None,
+                        help='Sets the threshold for search, below which a result will be ignored. Defaults to {} '
+                             'for general search and 0 when using a search term file'.format(config["threshold"]))
 
-def sorted_dict(dictionary, reverse=True):
-    """
-    Returns the list of (key, value) tuples in a dictionary, sorted first
-    by value and then by key
-    :param dictionary: The dictionary to sort
-    :param reverse: Whether to reverse the sort
-    :return: A sorted list of (key, value) tuples
-    """
-    return sorted(dictionary.items(), reverse=reverse, key=lambda x: (x[1], x[0]))
+    parser.add_argument('--version',
+                        action="version",
+                        version=config["version"])
 
+    args = parser.parse_args()
 
-def proper_noun_search(post_titles: list, filter_words: [str]=None):
-    """
-    Finds a count of every proper noun which appears in a list of
-    titles more than a certain number of times
-
-    :param post_titles: The list of post titles
-    :param filter_words: A list of words to remove from the results list
-    :returns: A list of (word: str, count: int) tuples
-    """
-    # Counter for all other proper nouns
-    noun_count = {}
-
-    # Find every proper noun in the tiles and log them
-    for title in post_titles:
-        results = regex.findall(r'\b[A-Z][\w.]*\b', title)
-        if not results:
-            continue
-
-        for noun in results:
-            if noun in noun_count:
-                noun_count[noun] += 1
-            else:
-                noun_count[noun] = 1
-
-    if filter_words:  # Filter common words
-        return keys_ignored(noun_count, filter_words)
-    return noun_count
-
-
-def name_search(post_titles: list, names: list):
-    """
-    Searches the titles for instances of each name and returns
-    the number of instances each name was seen
-
-    :param post_titles: The list of post titles
-    :param names: The name list. Each element is a list of strings that all count
-                    as instances of the primary name, which is the first element
-    :returns: A list of (name: str, count: int) tuples
-    """
-
-    # Create the counter table
-    name_count = {}
-    for character in names:
-        name_count[character[0]] = 0
-
-    # Search for every character
-    for name_list in names:
-        name_key = name_list[0]
-
-        # Compile character's nicknames names into a `(<A>|<B>|...)` regex string
-        escaped_list = [regex.escape(name) for name in name_list]
-        name_reg_str = '\\b({})\\b'.format("|".join(escaped_list))
-
-        # Search every title for instance of character name
-        for title in post_titles:
-            if regex.search(name_reg_str, title, regex.IGNORECASE):
-                name_count[name_key] += 1
-
-    return name_count  # Sort the dictionary but value and key and return it
-
-
-def read_from_cache(filepath: str, subreddit: str, limit_setting, ttl: int = 3600):
-    """
-    Fetches the list of titles from the cache.
-
-    :param filepath: The path to the cache file
-    :param subreddit: The name of the subreddit whose results were cached
-                        This is always stored in lowercase
-    :param limit_setting: The feed limit setting for this search
-    :param ttl: The number of seconds before the cache is invalidated.
-                If `None`, cache is never invalidated. Defaults to 1 hour
-    :return: The list of titles from cache. If cache is invalid (expired,
-                doesn't exist) `None` is returned
-    """
-    if not os.path.exists(filepath):
-        print("Error: Could not find cache file")
-        return None
-
-    print("Checking cache...")
-    with open(filepath, 'r') as fp:
-        data = json.load(fp)
-
-    cache_key = "{}:{}".format(subreddit.lower(), limit_setting)
-
-    if cache_key not in data:
-        print("Alert: Cache empty")
-        return None
-
-    data = data[cache_key]  # Isolate search settings
-
-    # Check age of cache
-    cache_time = data["time"]
-    curr_time = time.time()
-    if ttl is None or (cache_time + ttl) >= curr_time:
-        print("Cache loaded.")
-        return data["titles"]
-    print("Alert: Cache expired")
-    return None
-
-
-def save_to_cache(filepath: str, subreddit: str, limit_setting, titlelist: list):
-    """
-    Saves a list of titles to the cache
-
-    :param filepath: The path to the cache file
-    :param subreddit: The subreddit being cached. This is always stored in lowercase
-    :param limit_setting: The feed limit setting for this search
-    :param titlelist: The list of titles
-    """
-    # Create cache file if one does not exist
-    if not os.path.exists(filepath):
-        print("Alert: Creating cache file...")
-        with open(filepath, 'w') as fp:
-            data = {}
-            json.dump(data, fp)
-    else:
-        with open(filepath, 'r') as fp:
+    # Overwrite default config values if present
+    if args.config:
+        with open(args.config, 'r') as fp:
             data = json.load(fp)
+            for attr in data:
+                if attr not in config:  # Throw error if file has foreign key
+                    raise ValueError("Found unrecognized key `{}` in config file `{}`".format(attr, args.config))
+                config[attr] = data[attr]
 
-    # Make sure path exists
+    # Set script values based on arguments and config values
 
-    cache_key = "{}:{}".format(subreddit.lower(), limit_setting)
-    if cache_key not in data:
-        data[cache_key] = {}
+    # `True` if word count should be performed on all posts in the subreddit, not just those in the feed
+    parse_all = args.all
+    # The path to the search terms csv file
+    search_terms_path = args.search_terms
+    # The path to the term group csv file
+    term_group_path = args.term_group
+    # The feed limit
+    feed_limit = args.feed_limit
+    # The list of feeds to scrape
+    feeds = args.feeds if args.feeds else config["enabled_feeds"]
+    # Whether to force each feed to update regardless of cache validity
+    force = True if args.force else False
+    # The name of the subreddit being scraped
+    sub_name = args.subreddit
+    # The path to the word filter file
+    word_filter_path = None if args.no_filter else config["filtered_words_file"]
+    if args.threshold:  # If argument passed, use it for threshold
+        threshold = args.threshold
+    else:  # Otherwise set it to 0 for term search and DEFAULT THRESHOLD for proper noun search
+        threshold = 0 if args.search_terms else config["threshold"]
 
-    data[cache_key] = {
-        "titles": titlelist,
-        "time": time.time()
-    }
+    # ============================================================= Load data
+    print("---------------------------------------")
 
-    # Save results to cache
-    with open(filepath, 'w') as fp:
-        json.dump(data, fp)
-        print("Results saved to cache.")
+    # Load from cache if cache is valid
+    cache = searchCache.read_from_cache(config["cache_file_path"], sub_name)
+    reddit = praw.Reddit(client_id=config["client_id"],
+                         client_secret=config["client_secret"],
+                         user_agent=config["user_agent"])
 
+    # Refresh all feeds enabled in config.json
+    updated = False  # Track whether any feed was updated
+    if "hot" in feeds:
+        updated_hot = cache.refresh_feed(reddit, "hot", ttl=config["cache_hot_ttl"], feed_limit=feed_limit, force=force)
+        updated = updated or updated_hot
+    if "new" in feeds:
+        updated_new = cache.refresh_feed(reddit, "new", ttl=config["cache_new_ttl"], feed_limit=feed_limit, force=force)
+        updated = updated or updated_new
+    if "top" in feeds:
+        updated_top = cache.refresh_feed(reddit, "top", ttl=config["cache_top_ttl"], feed_limit=feed_limit, force=force)
+        updated = updated or updated_top
 
-def show_bar_chart(data: list, graph_title: str):
-    """
-    Displays a bar chart containing the data in a list of tuples
+    if updated:
+        cache.save(config["cache_file_path"])  # After refreshing, save cache
+    else:
+        print("Loaded values from cache")
 
-    Note: this function requires matplotlib
+    titles = cache.titles(feed_name_list=None if parse_all else feeds)  # Extract title list from cache
 
-    :param data: The list of sorted (category, value) tuples
-    :param graph_title: The title of the graph
-    """
+    # Remove any titles from the anaylsis that don't meet the regex criteria
+    titles = utils.regex_trimed(titles, ignore=config["ignore_regex"], require=config["require_regex"])
 
-    # Check that matplotlib can be is imported
-    try:
-        import matplotlib.pyplot as plt
-    except ImportError as ie:
-        print("Error: Failed to import matplotlib. Cannot display graph")
-        print(ie)
-        return
+    # ========================================================= Perform search
+    print("---------------------------------------")
 
-    # Turn tuples into lists
-    categories = [category for category, value in data]
-    values = [value for category, value in data]
+    if search_terms_path:  # Run name search if csv path defined
+        names = utils.ingest_csv(search_terms_path)  # Ingest name list
+        result_dictionary = utils.name_search(titles, names)
+    else:
+        term_groups = utils.ingest_csv(term_group_path) if term_group_path else None
+        common_words = utils.ingest_csv(word_filter_path)[0] if word_filter_path else None
+        result_dictionary = utils.proper_noun_search(titles, term_group_path, common_words)
+
+    # Remove entries that don't meet a threshold
+    if threshold is not None:
+        # Filter non-notable entries
+        result_dictionary = utils.filtered_dict(result_dictionary, threshold)
+
+    sorted_tuples = utils.sorted_dict(result_dictionary)
+
+    # ========================================================== Display Findings
+
+    # Print rankings to stdout
+    print("Popularity score:\n")
+    for name, count in sorted_tuples:
+        print("{} - {}".format(name, count))
 
     # Create bar chart
-    y_pos = [*range(len(categories))]
-    plt.bar(y_pos, values, align='center')
-    plt.xticks(y_pos, categories, rotation=50)
-    plt.title(graph_title)
-    plt.ylabel("Occurrences")
-    plt.tight_layout()
-    plt.show()
+    sorted_tuples = sorted_tuples[:config["rank_cutoff"]]  # Trim results list
+
+    # Present graph if requested
+    if args.graph:
+        utils.show_bar_chart(sorted_tuples, "Top {} Results for /r/{}".format(len(sorted_tuples), sub_name))
