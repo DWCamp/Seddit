@@ -7,6 +7,7 @@
   "user_agent": "macOS 10.15.6:Seddit:v0.3.1 (by u/<Reddit username>)",
 
   "cache_file_path": "sedditCache.json",
+  "cache_dir_path": "cache",
   "cache_hot_ttl": 14400,
   "cache_new_ttl": 1800,
   "cache_top_ttl": 2592000,

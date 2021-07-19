@@ -9,6 +9,8 @@ Executes a Seddit search
 
 import argparse
 import json
+from functools import reduce
+from operator import add
 
 import praw
 import utils
@@ -37,7 +39,8 @@ if __name__ == "__main__":
 
     parser.add_argument('subreddit', type=str, help='Defines the subreddit being searched.')
 
-    # Optional term lists
+    """ Optional term lists """
+
     term_arg_group = parser.add_argument_group()
 
     term_arg_group.add_argument('-st',
@@ -58,7 +61,8 @@ if __name__ == "__main__":
                                      "spelling. Note: Only unifies groups after parsing words, so it won't find terms "
                                      "with multiple words.")
 
-    # Other arguments
+    """ Other arguments """
+
     parser.add_argument('-a',
                         '--all',
                         action="store_true",
@@ -119,7 +123,8 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    # Overwrite default config values if present
+    """ Overwrite default config values if present """
+
     if args.config:
         with open(args.config, 'r') as fp:
             data = json.load(fp)
@@ -128,7 +133,7 @@ if __name__ == "__main__":
                     raise ValueError("Found unrecognized key `{}` in config file `{}`".format(attr, args.config))
                 config[attr] = data[attr]
 
-    # Set script values based on arguments and config values
+    """ Set script values based on arguments and config values """
 
     # `True` if word count should be performed on all posts in the subreddit, not just those in the feed
     parse_all = args.all
@@ -173,7 +178,7 @@ if __name__ == "__main__":
         updated = updated or updated_top
 
     if updated:
-        cache.save(config["cache_file_path"])  # After refreshing, save cache
+        cache.save(config["cache_file_path"])  # If any feeds were refreshed, update cache
     else:
         print("Loaded values from cache")
 
@@ -188,12 +193,19 @@ if __name__ == "__main__":
     if search_terms_path:  # Run name search if csv path defined
         names = utils.ingest_csv(search_terms_path)  # Ingest name list
         result_dictionary = utils.name_search(titles, names)
-    else:
+    else:  # If no search terms provided, run search for proper nouns
+        """ Read term groups from CSV """
         term_groups = utils.ingest_csv(term_group_path) if term_group_path else None
-        common_words = utils.ingest_csv(word_filter_path)[0] if word_filter_path else None
-        result_dictionary = utils.proper_noun_search(titles, term_group_path, common_words)
 
-    # Remove entries that don't meet a threshold
+        """ Read common words from CSV """
+        common_words = utils.ingest_csv(word_filter_path) if word_filter_path else None
+        common_words = reduce(add, common_words)  # Flatten 2D CSV to single list
+
+        """ Perform search """
+        result_dictionary = utils.proper_noun_search(titles, term_groups, common_words)
+
+    """ Remove words that don't meet the frequency cutoff """
+
     if threshold is not None:
         # Filter non-notable entries
         result_dictionary = utils.filtered_dict(result_dictionary, threshold)
@@ -202,14 +214,17 @@ if __name__ == "__main__":
 
     # ========================================================== Display Findings
 
-    # Print rankings to stdout
+    """ Print rankings to stdout """
+
     print("Popularity score:\n")
     for name, count in sorted_tuples:
         print("{} - {}".format(name, count))
 
-    # Create bar chart
+    """ Create bar chart """
+
     sorted_tuples = sorted_tuples[:config["rank_cutoff"]]  # Trim results list
 
-    # Present graph if requested
+    """ Present graph if requested """
+
     if args.graph:
         utils.show_bar_chart(sorted_tuples, "Top {} Results for /r/{}".format(len(sorted_tuples), sub_name))
