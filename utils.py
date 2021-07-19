@@ -46,18 +46,18 @@ def filtered_dict(dictionary: dict, threshold, invert: bool = False):
     return {key: value for (key, value) in dictionary.items() if (value < threshold) == invert}
 
 
-def keys_ignored(dictionary: dict, remove: [str]):
+def keys_ignored(dictionary: dict, remove: [str]) -> None:
     """
     Performs an in-place removal of a list of string keys from
     a given dictionary. This check is case-insensitive
 
     :param dictionary: The dictionary to filter
     :param remove: The keys to remove
-    :return: A copy of the dictionary with all items removed
-            whose key was in the list
     """
     remove = [key.lower() for key in remove]  # Make sure keys to remove are all lower
-    return {key: value for (key, value) in dictionary.items() if key.lower() not in remove}
+    for word in remove:
+        if word in dictionary:
+            del dictionary[word]
 
 
 def sorted_dict(dictionary, reverse=True):
