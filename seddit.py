@@ -16,7 +16,7 @@ import praw
 import utils
 import searchCache
 
-CONFIG_FILE = "config.json"
+CONFIG_FILE = "config.py"
 
 if __name__ == "__main__":
     """
