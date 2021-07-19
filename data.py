@@ -1,18 +1,11 @@
 """
-Second version of the ranking algorithm for Seddit
+Data classes for Seddit
 
-Goals:
-X Count titles containing words, not word instances, so that one post isn't counted twice
-X A function that maps an input belonging a term group to the group name (does nothing if input does not belong to a
-        term group)
-- A scoring method which sums the scores of posts containing the term
-- Pandas? Numpy?
+TermGroup - A group of synonyms which should be counted as the same item
+Post - A post on a subreddit
 
-Integration:
-- Titles are provided as a large list along with either (A) a list of terms to search for (B) a list of term groups
-        and words to filter
-- Expects back a dictionary of word:score ("score" is currently the frequency)
-
+@author Daniel Campman
+@version 7/19/20
 """
 import re
 

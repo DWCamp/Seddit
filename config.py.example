@@ -1,5 +1,5 @@
-version = "v0.4.0"
-description = "Seddit v0.4.0 - A Python Script for counting the number of instances a collection of " \
+version = "v0.5.0"
+description = "Seddit v0.5.0 - A Python Script for counting the number of instances a collection of " \
               "terms get said on different subreddits",
 
 client_secret = "<Reddit API Client Secret>"

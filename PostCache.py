@@ -15,7 +15,7 @@ import praw
 
 import config
 import utils
-from v2 import Post, TermGroup
+from data import Post, TermGroup
 
 
 class PostCache:
@@ -178,7 +178,10 @@ class PostCache:
 
             # Fetch posts from feed
             for submission in generator:
-                self.posts.add(Post(submission.id, submission.title, submission.score))
+                new_post = Post(submission.id, submission.title, submission.score)
+                # If post already in set, replace with more current score
+                self.posts.discard(new_post)
+                self.posts.add(new_post)
 
             # Update cache age
             self.feed_ages[feed_name] = curr_time

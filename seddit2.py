@@ -4,7 +4,7 @@ seddit.py
 Executes a Seddit search
 
 @author Daniel Campman
-@version 4/19/20
+@version 7/19/20
 """
 
 import argparse
@@ -12,7 +12,7 @@ import os
 
 import praw
 
-import v2
+import data
 import config
 import utils
 from PostCache import PostCache
@@ -71,6 +71,10 @@ parser.add_argument('-th',
                     help=f'The threshold for search, below which a result will be ignored. '
                          f'Defaults to {config.threshold} for general search and 0 when using a search term file')
 
+parser.add_argument('--version',
+                    action="version",
+                    version=f"Seddit {config.version} - Cache file v{PostCache.CACHE_FORMAT_VERSION}")
+
 parser.add_argument('-wf',
                     '--word-filter',
                     type=str,
@@ -108,7 +112,7 @@ def main() -> None:
 
     """ Read term groups from CSV """
     terms_list = utils.ingest_csv(term_group_path) if term_group_path else None
-    term_group = v2.TermGroup(terms_list)
+    term_group = data.TermGroup(terms_list)
 
     """ Read in word filter CSV files and flatten to 1D list """
     word_set = set()
