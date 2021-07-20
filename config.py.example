@@ -2,10 +2,12 @@ version = "v0.5.0"
 description = "Seddit v0.5.0 - A Python Script for counting the number of instances a collection of " \
               "terms get said on different subreddits",
 
+# PRAW
 client_secret = "<Reddit API Client Secret>"
 client_id = "<Reddit API Client ID>"
 user_agent = "<platform>:<app ID>:<version string> (by u/<Reddit username>)"
 
+# Cache settings
 cache_dir_path = "cache"
 cache_ttl = {
     "hot": 14400,
@@ -13,11 +15,16 @@ cache_ttl = {
     "top": 2592000
 }
 
-filtered_words_file = "words.csv"
+# Post filters
+filtered_words_file = "filters/default.csv"
 rank_cutoff = 15
 search_terms_file = None
 term_group_file = None
 threshold = 5
 
-ignore_regex = None
-require_regex = None
+# Regex filters
+ignore_title_regex = None
+require_title_regex = None
+
+ignore_word_regex = None
+require_word_regex = None

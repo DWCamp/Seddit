@@ -9,6 +9,8 @@ Post - A post on a subreddit
 """
 import re
 
+import config
+
 
 class TermGroup:
 
@@ -82,7 +84,15 @@ class Post:
         :param term_group: The TermGroup object for this query
         :return: The set of words in the post title
         """
-        title = term_group.sanitize(self.title) if term_group else self.title
+        title = self.title
+
+        # Check title against regex
+        if config.ignore_title_regex and re.search(config.ignore_title_regex, title):
+            return set()
+        if config.require_title_regex and re.search(config.require_title_regex, title) is None:
+            return set()
+
+        title = term_group.sanitize(title) if term_group else title
         # Find all 'words' in the title (i.e. contiguous alphanumeric strings)
         words = re.findall(r"\b[\w.]+'?[\w.]*\b", title.lower())
         if not words:
@@ -91,6 +101,13 @@ class Post:
         # Convert list to set to remove duplicates
         result = set()
         for word in words:
+            # Ignore word if it contains disallowed regex
+            if config.ignore_word_regex and re.search(config.ignore_word_regex, word):
+                continue
+            # Ignore word if it does not contain required regex
+            if config.require_word_regex and re.search(config.require_word_regex, word) is None:
+                continue
+            # If not blocked by regex, add word
             result.add(word)
 
         # Return words
