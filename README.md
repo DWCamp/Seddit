@@ -1,21 +1,25 @@
-# Seddit v0.4.1
+# Seddit v0.5.0
 A Python Script for counting the number of instances a collection of terms get used in post titles on different subreddits. 
-It can either search through all words to find the most common proper nouns or can take in a text file containing a list of specific terms to look for and show their frequencies.
-As it performs each search, it stores every post it sees in a cache file, allowing it over time to amass a database of posts on a subreddit.
+It can either search through all words to find the most common words or can take in a CSV file containing a list of specific terms to look for and show their frequencies.
+As it performs each search, it stores every post it sees in a cache file, allowing it to amass a large collection of posts over time.
 
 ## Installation
 
 1. Download and extract the zip file.
-2. Make sure you have PRAW installed by running `pip install praw`. [Here is a link](https://www.reddit.com/prefs/apps) to the webpage for acquiring a Client ID and secret
-3. Create a duplicate of `config.json`.example` named `config.json` in the project's root directory and replace the sample values with those needed for your script 
+2. Install the packages listed in `requirements.txt`. 
+This can be done automatically by running the command `pip install -r requirements.txt` inside the root directory.
+3. Obtain a client secret and client ID from Reddit.
+Instructions for how can be found on [Reddit's OAuth2 Wiki](https://github.com/reddit-archive/reddit/wiki/OAuth2)
+4. Create a duplicate of `config.py.example` named `config.py` in the project's root directory. 
+Replace the sample values with those needed for your script
 
 ## Quickstart
 
 ### Search
 
 Seddit uses PRAW to search the hot, top, and or new feed for a given subreddit and collect all of the posts.
-After the list of post titles is collected, it will be scanned for frequently used capitalized words.
-Common English words (defined by a csv file) will be discarded.
+The frequency of all words is then calculated, excluding a list of filtered words.
+This filter can be used to exclude common words (e.g. the, a, an, this, etc.). 
 The list of words will then be sorted by frequency and the results will be displayed on the terminal.
 
 ##### Example
@@ -38,7 +42,7 @@ Duna - 48
 ...
 ```
 
-(Output truncated for brevity)
+(Output truncated)
 
 ### Graphing
 
@@ -46,14 +50,62 @@ In addition to having the results printed to the console, Seddit can also genera
 
 **Note:** To generate these graphs, you must have matplotlib installed. 
 
+### Term Groups
+
+Term Groups can be used to group together nicknames (e.g. "Philly" and "Philadelphia") or common misspellings (e.g. "D.Va" and "DVa").
+These groups are defined by a CSV file, where each row is a group and each column is a term in that group.
+A default file can be defined in `config.py`, or a different one can be passed in as an argument.
+When counting, each word in the group is replaced with the first term in the row.
+This means that if two groups contain the same term, it will only count towards the first group.
+
+Additionally, this mapping is done to the title as a whole, so multiple word phrases can be mapped to single words.
+However, this means this first term in a group must be a single word, otherwise it will be broken up during frequency search.
+
+##### Example
+
+**overwatch.csv**
+
+```
+Tank,D.Va,Oria,Reinhardt,Roadhog,Sigma,Winston,Wrecking Ball,Zarya
+Damage,Ashe,Bastion,Doomfist,Echo,Genji,Hanzo,Junkrat,McCree,Mei,Pharah,Reaper,Soldier: 76,Sombra,Symmetra,Torbjörn,Tracer,Widowmaker
+Support,Ana,Baptiste,Brigitte,Lucio,Lúcio,Mercy,Moira,Zenyatta
+```
+
+**Program**
+
+```
+seddit.py Overwatch -tg term_groups/overwatch.csv
+Checking cache for /r/Overwatch
+Cached posts: 231
+===============================================
+================  RESULTS  ====================
+===============================================
+
+Popularity score:
+
+1) Damage - 43
+2) overwatch - 22
+3) Support - 21
+4) Tank - 15
+5) new - 14
+6) game - 12
+7) potg - 11
+8) think - 10
+9) get - 9
+10) play - 8
+...
+```
+
+(Output truncated)
+
 ### Search terms
 
 If the objective is to compare the relative frequency of a known list of words, a search for only that specific set can be performed instead.
-Tiles will be compiled like before, but this time only the specific terms will be searched for. 
-Unlike proper nouns, these terms are case insensitive and a term can be multiple words long. 
-Additionally, multiple search terms can be grouped together, like if there are multiple phrases that mean the same thing (e.g. "New York City" and "NYC")
-When multiple terms are used, the first term is considered the "official" name for console output and graphs.
-These words can be fed in through the command line using a csv file, where every row is a term and each additional name in a row separated by a single comma.
+These groups are defined by a CSV file, where each row is a group and each column is a term in that group.
+A default file can be defined in `config.py`, or a different one can be passed in as an argument.
+When the results are displayed, only the search terms provided will be displayed. 
+Like term groups, search terms can be multiple word phrases and multiple terms can be grouped together.
+Unlike term groups, however, the first term in the row can be more than one word.
 
 ##### Example
 
@@ -92,23 +144,20 @@ Marie - 37
 
 ### Cache
 
-Searches that yield lots of results produce better data, but they also take a long time. 
-Because of this, every time you search a subreddit, the results are saved to a cache. 
-Over time, this cache will no longer be accurate to the subreddit feeds, so after an amount of time the cache will expire and the search will be run again.
-However, when the search is re-run, the old data isn't thrown away. 
-All post details are stored in a central collection, with each feed being merely a list of the post IDs. 
-As each feed is refreshed over time, the total number of posts catalogued will slowly grow.
-This allows the script to circumvent the Reddit API's limitation of 1000 posts per search and provide a large 
-collection of data
+Searches that yield lots of results produce better data, but they also take a long time.
+Additionally, Reddit's API restricts searches to a maximum of 1,000 posts per feed.
+To get around this, every time you search a subreddit, the results are saved to a cache. 
+Eventually, this cache will expire and another search will be run, but the old posts will still be kept.
+This lets the feeds stay current while the total number of posts saved grows.
+Over time, the number of posts grow far beyond what can be scraped at one time.
 
-### words.csv
+### Word filters
 
-Included in the directory is a file called `words.csv`. 
-This is a small list of the 250 most popular English words (plus a few more). 
-It helps filter out words whose frequency in titles isn't interesting. 
-This filtering can be disabled or modified.
-If a different file is used, it should be a file containing all of the words on a single line, separated only by commas.
-The path to this file can be set in the `config.json` file.
+A word filter is a CSV file containing strings that shouldn't be included in the results list.
+Several files are included in the `filters` directory. 
+The default file is `default.csv`, which can be changed in `config.py` or by a command line argument.
+This filters 250 most popular English words, a few other common words, single letters, and numbers from 0-100.
+Lists of the 100, 1000, and 10000 most common English words have also been included.
 
 ## Examples
 
@@ -120,17 +169,18 @@ python seddit.py funny
 
 #### Creating a graph
 
+Using Matplotlip, a bar chart of frequencies for the most popular words can be generated at the end of a search.
+To reduce crowding, the "rank cutoff" setting in `config.py` specifies how many terms to display.
+This graph is generated from the same list shown on screen, so the score threshold will apply here as well. 
+
 ```
-python seddit.py all -g
+python seddit.py TIL -g
 ```
 
 ## Configuration
 
 While Seddit offers many command line arguments for modifying its function, many parameters are not available at the command line.
-This simplifies the help screen and makes important commands more visible, but at the cost of configuration.
-To get around that, Seddit uses a `config.json` file to define several important values that can't be reached by arguments.
-This file can be modified to change the default behavior between runs. 
-Additionally, a file containing some or all of these values can be passed in as an argument to vary the program's behavior from run to run.
+These parameters are stored in `config.py`, which defines several important values that can't be reached by arguments.
 
 #### General Parameters
 
@@ -139,26 +189,27 @@ Additionally, a file containing some or all of these values can be passed in as 
 
 #### PRAW Configuration
 
+The client_secret and client_id for your program must be obtained from Reddit. [Learn how...](https://github.com/reddit-archive/reddit/wiki/OAuth2)   
+
 * **client_secret** - Your Client Secret for the Reddit API
 * **client_id** - Your Client ID for the Reddit API
 * **user_agent** - PRAW User Agent. The recommended format is provided in the example file
 
 #### Caching Configuration
 
-* **cache_file_path** - The path to the cache file
-* **cache_hot_ttl** - Cache lifetime for hot feed
-* **cache_new_ttl** - Cache lifetime for new feed
-* **cache_top_ttl** - Cache lifetime for top feed
-* **enabled_feeds** - The list of feeds to check when searching a subreddit ('hot', 'new', or 'top')
+* **cache_dir_path** - The path to the directory where cache files are stored
+* **cache_ttl** - A dictionary of each feed and how many seconds should pass before it needs to be refreshed. The slower this data changes, the longer the time
 
 #### Analysis Configuration
 
-* **filtered_words_file** - The path to a CSV file containing words to filter out of noun search. The words should all be on the first line of the file. The included file contains the 250 most common words in the English language, to prevent words like 'The' and 'A' from dominating the results
+* **filtered_words_file** - The path to a CSV file containing words to exclude from the results, such as common words or uninteresting results
 * **rank_cutoff** - The highest rank to show on the graph. For all results, set to -1
-* **search_terms** - Defines a default search terms file to use
 * **threshold** - The frequency threshold for filtering out obscure results
 
-#### Regex
+#### Regex 
 
-* **ignore_regex** - Posts that match this regex string will **not** be evaluated
-* **require_regex** - **Only** posts that match this regex string will be evaluated
+* **ignore_title_regex** - Titles containing a match will not be analyzed 
+* **require_title_regex** - Only titles containing a match will be analyzed
+
+* **ignore_word_regex** - Words containing a match will not be included in the results
+* **require_word_regex** - Only words containing a match will be included in the results

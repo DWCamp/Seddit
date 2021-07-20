@@ -88,12 +88,15 @@ class PostCache:
         # Show cache size
         print(f"Cached posts: {len(self.posts)}")
 
-    def count_terms(self, term_group: TermGroup = None,
+    def count_terms(self,
+                    searched_words: [str] = None,
+                    term_group: TermGroup = None,
                     filtered_words: [str] = None,
                     method: str = SCORE) -> {str: int}:
         """
-        Counts the frequency of words across every post in the cache
+        Counts the frequency of a given set of words
 
+        :param searched_words: List of words (case-insensitive) to search for.
         :param term_group: The TermGroup for the given search. If `None`, no TermGroup is used (Default: None)
         :param filtered_words: List of words (case-insensitive) that will be not be included in the results.
                 If "None", no words will be filtered (Default: None)
@@ -101,17 +104,24 @@ class PostCache:
                 appears, finding the most common word. SCORE adds up the scores of every post
                 containing the word, finding the 'most liked' word.
 
-        :return: A {str:int} dictionary of words mapped to the number of titles they appeared in
+        :return: A {str:int} dictionary of how frequently words mapped to the number of titles they appeared in
         """
+        # Change searched_words to empty list
+        if searched_words is None:
+            searched_words = []
+
         # Perform search
         word_frequency = {}
+        for word in searched_words:
+            word_frequency[word.lower()] = 0
+
         for post in self.posts:
             term_list = post.term_list(term_group)
             value = post.score if method == PostCache.SCORE else 1
             for term in term_list:
                 if term in word_frequency:
                     word_frequency[term] += value
-                else:
+                elif not searched_words:
                     word_frequency[term] = value
 
         # Remove filtered words
@@ -133,13 +143,17 @@ class PostCache:
         return list(self.posts)
 
     def refresh(self,
-                force: bool = False):
+                force: bool = False,
+                limit: int = None):
         """
         Updates the cache for the specified feed(s) if any of the following conditions are true:
             - Feed ttl has expired
             - Cache is being force refreshed
 
         :param force: If `True`, cache will refresh even if it hasn't expired yet (Default: False)
+        :param limit: The feed limit for PRAW. Determines the maximum number of posts PRAW will fetch
+            when refreshing the feeds. The lower the number, the faster it will refresh, but the less
+            data will be collected. To collect the maximum number (~1000), set to `None` (Default: None)
 
         :return: Returns `True` if the feed was refreshed, `False` otherwise
         """
@@ -170,11 +184,11 @@ class PostCache:
 
             # Get post generator
             if feed_name == "hot":
-                generator = subreddit.hot(limit=None)
+                generator = subreddit.hot(limit=limit)
             elif feed_name == "new":
-                generator = subreddit.new(limit=None)
+                generator = subreddit.new(limit=limit)
             else:
-                generator = subreddit.top(limit=None)
+                generator = subreddit.top(limit=limit)
 
             # Fetch posts from feed
             for submission in generator:
