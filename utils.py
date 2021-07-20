@@ -11,11 +11,12 @@ of their posts.
 
 # Libraries
 import csv
-import re as regex
+import re
 
 
 def ingest_csv(csv_path: str, delimiter: str=',', strip_spaces: bool=True) -> [[str]]:
     """
+    Takes in a CSV file and returns a 2D list of the contents
 
     :param csv_path: The path to the csv file
     :param delimiter: The character which divides cells in the file's csv encoding. Defaults to ','
@@ -45,18 +46,18 @@ def filtered_dict(dictionary: dict, threshold, invert: bool = False):
     return {key: value for (key, value) in dictionary.items() if (value < threshold) == invert}
 
 
-def keys_ignored(dictionary: dict, remove: [str]):
+def keys_ignored(dictionary: dict, remove: [str]) -> None:
     """
     Performs an in-place removal of a list of string keys from
     a given dictionary. This check is case-insensitive
 
     :param dictionary: The dictionary to filter
     :param remove: The keys to remove
-    :return: A copy of the dictionary with all items removed
-            whose key was in the list
     """
     remove = [key.lower() for key in remove]  # Make sure keys to remove are all lower
-    return {key: value for (key, value) in dictionary.items() if key.lower() not in remove}
+    for word in remove:
+        if word in dictionary:
+            del dictionary[word]
 
 
 def sorted_dict(dictionary, reverse=True):
@@ -86,7 +87,7 @@ def proper_noun_search(post_titles: list, term_groups=None, filter_words: [str]=
 
     # Find every proper noun in the tiles and log them
     for title in post_titles:
-        results = regex.findall(r'\b[A-Z][\w.]*\b', title)
+        results = re.findall(r'\b[A-Z][\w.]*\b', title)
         if not results:
             continue
 
@@ -96,15 +97,20 @@ def proper_noun_search(post_titles: list, term_groups=None, filter_words: [str]=
             else:
                 noun_count[noun] = 1
 
-    # Group together the term groups
+    # Merge the term groups
     for group in term_groups:
-        group_name = group[0].lower
+        group_name = group[0]
         if group_name not in noun_count:  # Add group name to noun count if not there already
             noun_count[group_name] = 0
-        for term in group:  # For every term in the group find it in the noun list
-            matching_keys = [key for key in noun_count if key.lower() == term.lower()]  # Find every match
-            for key in matching_keys:
-                noun_count[group_name] += noun_count[key]
+        for term in group:  # Search the noun list for every term in the group
+            matching_keys = []
+            for key in noun_count:  # Check every noun against the given term
+                if key.lower() == term.lower():  # If a match, flag the key
+                    matching_keys.append(key)
+            for key in matching_keys:  # Merge every match into the main entry
+                if key != group_name:  # Don't merge if the key is the group name
+                    noun_count[group_name] += noun_count[key]
+                    del noun_count[key]
 
     if filter_words:  # Filter common words
         return keys_ignored(noun_count, filter_words)
@@ -132,12 +138,12 @@ def name_search(post_titles: list, names: list):
         name_key = name_list[0]
 
         # Compile character's nicknames names into a `(<A>|<B>|...)` regex string
-        escaped_list = [regex.escape(name) for name in name_list]
+        escaped_list = [re.escape(name) for name in name_list]
         name_reg_str = '\\b({})\\b'.format("|".join(escaped_list))
 
         # Search every title for instance of character name
         for title in post_titles:
-            if regex.search(name_reg_str, title, regex.IGNORECASE):
+            if re.search(name_reg_str, title, re.IGNORECASE):
                 name_count[name_key] += 1
 
     return name_count  # Sort the dictionary but value and key and return it
@@ -154,13 +160,13 @@ def regex_trimed(string_list: [str], ignore: str=None, require: str=None):
     """
     old_len = len(string_list)
     if ignore is not None:
-        string_list = [string for string in string_list if not regex.search(ignore, string)]
+        string_list = [string for string in string_list if not re.search(ignore, string)]
         print("Removed {} strings through ignore regex".format(old_len - len(string_list)))
     old_len = len(string_list)
     if require is not None:
-        string_list = [string for string in string_list if regex.search(require, string)]
+        string_list = [string for string in string_list if re.search(require, string)]
         print("Removed {} strings through require regex".format(old_len - len(string_list)))
-    print(string_list[:10])
+    # print(string_list[:10])  -- Show sample of approved titles
     return string_list
 
 

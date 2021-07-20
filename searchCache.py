@@ -197,7 +197,7 @@ def read_from_cache(file_path: str, sub_name: str) -> SearchCache:
         return SearchCache(sub_name)
 
     # Load SearchCache from file
-    sub_dict = data["subreddits"][sub_name]
+    sub_dict = data["subreddits"][sub_name.lower()]
     new_cache = SearchCache(sub_name)
     new_cache._all_posts = sub_dict["all_posts"]
     new_cache.feeds = sub_dict["feeds"]
@@ -224,7 +224,7 @@ def save_to_cache(file_path: str, cache: SearchCache):
         with open(file_path, 'r') as fp:
             data = json.load(fp)
 
-    data["subreddits"][cache.subreddit] = cache.to_dict()  # Update the subreddit's cache
+    data["subreddits"][cache.subreddit.lower()] = cache.to_dict()  # Update the subreddit's cache
 
     # Save results to file
     with open(file_path, 'w') as fp:
