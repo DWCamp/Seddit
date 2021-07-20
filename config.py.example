@@ -15,11 +15,13 @@ cache_ttl = {
     "top": 2592000
 }
 
+# Search term files. Set to `None` to ignore
+search_terms_file = None
+term_group_file = None
+
 # Post filters
 filtered_words_file = "filters/default.csv"
 rank_cutoff = 15
-search_terms_file = None
-term_group_file = None
 threshold = 5
 
 # Regex filters
