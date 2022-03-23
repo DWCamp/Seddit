@@ -21,7 +21,7 @@ import data
 import utils
 from PostCache import PostCache
 
-DEFAULT_CONFIG_FILE = "config\\config.ini"
+DEFAULT_CONFIG_FILE = "config\\default.ini"
 VERSION = "v0.6.0"
 DESCRIPTION = f"Seddit {VERSION} - A Python Script for counting the number of " \
               f"instances a collection of terms get said on different subreddits"
@@ -96,7 +96,6 @@ def load_params() -> argparse.Namespace:
 
     parser.add_argument('-c',
                         '--config',
-                        default="config\\config.ini",
                         help="Force a refresh of the subreddit's cache, regardless of age")
     parser.add_argument('-f',
                         '--force',
@@ -132,8 +131,9 @@ def load_params() -> argparse.Namespace:
                         nargs='*',
                         help="The path to a CSV file listing words to exclude from results. "
                              "If more than one path is listed, the words in all files will be filtered. "
-                             "If not specified, the file specified in config.py will be used. "
-                             "To disable filtering, leave this field blank")
+                             "If not specified, the file specified in the default (or provided, if applicable) "
+                             "configuration file will be used. "
+                             "To disable filtering, use this flag with no value.")
 
     return parser.parse_args()
 

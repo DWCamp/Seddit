@@ -9,10 +9,8 @@ Post - A post on a subreddit
 """
 import re
 
-import config
 
-
-class TermGroup:
+class TermGroups:
 
     def __init__(self, groups: [[str]], ignore_case=True):
         """
@@ -43,14 +41,15 @@ class TermGroup:
 
     def sanitize(self, title: str) -> str:
         """
-        Sanitizes term groups by replacing every instance of a term with string with a
+        Sanitizes titles by replacing every instance of a term with the title of its term group.
+        Titles are then stripped to remove excess whitespace possibly created by replacement.
 
         :param title: The title to sanitize
         :return: The title, with all instances of a term group replaced with the group name
         """
         for group in self.groups:
             title = self.groups[group].sub(group, title)
-        return title
+        return title.strip()
 
 
 class Post:
@@ -77,37 +76,32 @@ class Post:
     def __hash__(self):
         return hash(self.postID)
 
-    def term_list(self, term_group: TermGroup) -> set:
+    def term_list(self,
+                  term_group: TermGroups,
+                  ignore_title_regex: str = None,
+                  require_title_regex: str = None) -> set:
         """
         Returns a set of all unique words in the post title
 
         :param term_group: The TermGroup object for this query
+        :param ignore_title_regex: A regex pattern titles must NOT contain to be evaluated.
+        :param require_title_regex: A regex pattern titles must contain to be evaluated
+
         :return: The set of words in the post title
         """
         title = self.title
 
         # Check title against regex
-        if config.ignore_title_regex and re.search(config.ignore_title_regex, title):
+        if ignore_title_regex and re.search(ignore_title_regex, title):
             return set()
-        if config.require_title_regex and re.search(config.require_title_regex, title) is None:
+        if require_title_regex and re.search(require_title_regex, title) is None:
             return set()
 
         title = term_group.sanitize(title) if term_group else title
-        # Find all 'words' in the title (i.e. contiguous alphanumeric strings)
-        words = re.findall(r"\b[\w.]+'?[\w.]*\b", title.lower())
-        if not words:
-            return set()
 
-        # Convert list to set to remove duplicates
+        # Find all 'words' in the title (i.e. contiguous alphanumeric strings)
         result = set()
-        for word in words:
-            # Ignore word if it contains disallowed regex
-            if config.ignore_word_regex and re.search(config.ignore_word_regex, word):
-                continue
-            # Ignore word if it does not contain required regex
-            if config.require_word_regex and re.search(config.require_word_regex, word) is None:
-                continue
-            # If not blocked by regex, add word
+        for word in re.findall(r"\b[\w.]+'?[\w.]*\b", title.lower()):
             result.add(word)
 
         # Return words

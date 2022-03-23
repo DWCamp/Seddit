@@ -1,4 +1,4 @@
-# Seddit v0.5.0
+# Seddit v0.6.0
 A Python Script for counting the number of instances a collection of terms get used in post titles on different subreddits. 
 It can either search through all words to find the most common words or can take in a CSV file containing a list of specific terms to look for and show their frequencies.
 As it performs each search, it stores every post it sees in a cache file, allowing it to amass a large collection of posts over time.
@@ -10,8 +10,9 @@ As it performs each search, it stores every post it sees in a cache file, allowi
 This can be done automatically by running the command `pip install -r requirements.txt` inside the root directory.
 3. Obtain a client secret and client ID from Reddit.
 Instructions for how can be found on [Reddit's OAuth2 Wiki](https://github.com/reddit-archive/reddit/wiki/OAuth2)
-4. Create a duplicate of `config.py.example` named `config.py` in the project's root directory. 
-Replace the sample values with those needed for your script
+4. Rename `config\example.ini` to `config\default.ini` and fill those values in where the placeholders are.
+You can also change any of the default parameters. 
+**Note:** In ini files, strings are not enclosed in quotes.
 
 ## Quickstart
 
@@ -180,36 +181,8 @@ python seddit.py TIL -g
 ## Configuration
 
 While Seddit offers many command line arguments for modifying its function, many parameters are not available at the command line.
-These parameters are stored in `config.py`, which defines several important values that can't be reached by arguments.
-
-#### General Parameters
-
-* **version** - The version number of the program
-* **description** - A brief description of the program
-
-#### PRAW Configuration
-
-The client_secret and client_id for your program must be obtained from Reddit. [Learn how...](https://github.com/reddit-archive/reddit/wiki/OAuth2)   
-
-* **client_secret** - Your Client Secret for the Reddit API
-* **client_id** - Your Client ID for the Reddit API
-* **user_agent** - PRAW User Agent. The recommended format is provided in the example file
-
-#### Caching Configuration
-
-* **cache_dir_path** - The path to the directory where cache files are stored
-* **cache_ttl** - A dictionary of each feed and how many seconds should pass before it needs to be refreshed. The slower this data changes, the longer the time
-
-#### Analysis Configuration
-
-* **filtered_words_file** - The path to a CSV file containing words to exclude from the results, such as common words or uninteresting results
-* **rank_cutoff** - The highest rank to show on the graph. For all results, set to -1
-* **threshold** - The frequency threshold for filtering out obscure results
-
-#### Regex 
-
-* **ignore_title_regex** - Titles containing a match will not be analyzed 
-* **require_title_regex** - Only titles containing a match will be analyzed
-
-* **ignore_word_regex** - Words containing a match will not be included in the results
-* **require_word_regex** - Only words containing a match will be included in the results
+These parameters are stored in configuration files, which define several important values that can't be reached by arguments.
+Default values are determined by `DEFAULT_CONFIG_FILE`, which is specified at the top of `seddit.py`.
+The default path is `config/default.ini`
+These can be overridden by extending this file or passing in a different filepath through the command line.
+The available fields, their descriptions, and suggested values can be found in `config/example.ini`

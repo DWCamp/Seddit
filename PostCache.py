@@ -9,23 +9,29 @@ for words found in the title
 
 import json
 import os
+import re
 import time
 
 import praw
 
-import config
-import utils
-from data import Post, TermGroup
+from data import Post, TermGroups
 
 
 class PostCache:
-    CACHE_FORMAT_VERSION = "2.0"
+    _CACHE_FORMAT_VERSION = "2.0"
+    _CACHE_CACHE = {}  # A dictionary of PostCache objects for each subreddit
 
     # Scoring methods
     COUNT = 0
     SCORE = 1
 
-    def __init__(self, subreddit: str, cache_file: str, reddit: praw.reddit):
+    def __init__(self,
+                 subreddit: str,
+                 cache_file: str,
+                 reddit: praw.reddit,
+                 hot_ttl: int = 86400,
+                 new_ttl: int = 21600,
+                 top_ttl: int = 2592000):
         """
         Creates a cache of posts from a subreddit. Posts will be loaded from
         a cache file. If a cache file cannot be located, an empty file
@@ -33,12 +39,20 @@ class PostCache:
 
         :param subreddit: The name of the subreddit the posts are scraped from
         :param cache_file: The path of the cache file
+        :param hot_ttl: The number of seconds before the hot feed is refreshed (Default: 24 hours)
+        :param new_ttl: The number of seconds before the new feed is refreshed (Default: 6 hours)
+        :param top_ttl: The number of seconds before the top feed is refreshed (Default: 30 days)
         """
         self.subreddit = subreddit  # The name of the subreddit
         self.feed_ages = {  # The time when feed was last refreshed
             "hot": 0.0,
             "new": 0.0,
             "top": 0.0
+        }
+        self.ttl = {
+            "hot": hot_ttl,
+            "new": new_ttl,
+            "top": top_ttl
         }
         self.posts = set()  # A dictionary of all posts on the subreddit
 
@@ -51,7 +65,7 @@ class PostCache:
             # Create empty cache file
             with open(self._cache_file, 'w') as fp:
                 data = {
-                    "version": PostCache.CACHE_FORMAT_VERSION,
+                    "version": PostCache._CACHE_FORMAT_VERSION,
                     "subreddit": self.subreddit,
                     "feed_ages": self.feed_ages,
                     "posts": []
@@ -71,8 +85,8 @@ class PostCache:
             if key not in data:  # Check that cache has all required keys
                 raise ValueError(f"Cache contains no key '{key}'")
 
-        if not validate_cache_version(PostCache.CACHE_FORMAT_VERSION, data["version"]):
-            raise ValueError(f"Unsupported cache version: Expected '{PostCache.CACHE_FORMAT_VERSION}', "
+        if not validate_cache_version(PostCache._CACHE_FORMAT_VERSION, data["version"]):
+            raise ValueError(f"Unsupported cache version: Expected '{PostCache._CACHE_FORMAT_VERSION}', "
                              f"was '{data['version']}'")
 
         if data["subreddit"].lower() != self.subreddit.lower():  # Check subreddit
@@ -88,51 +102,94 @@ class PostCache:
         # Show cache size
         print(f"Cached posts: {len(self.posts)}")
 
-    def count_terms(self,
-                    searched_words: [str] = None,
-                    term_group: TermGroup = None,
-                    filtered_words: [str] = None,
+    def count_words(self,
+                    term_group: TermGroups = None,
+                    ignore_title_regex: str = None,
+                    require_title_regex: str = None,
                     method: str = SCORE) -> {str: int}:
         """
-        Counts the frequency of a given set of words
+        Counts the frequency of every word in the titles of cached posts. A TermGroup can be used to specify
+        words that should be considered one
 
-        :param searched_words: List of words (case-insensitive) to search for.
         :param term_group: The TermGroup for the given search. If `None`, no TermGroup is used (Default: None)
-        :param filtered_words: List of words (case-insensitive) that will be not be included in the results.
                 If "None", no words will be filtered (Default: None)
+        :param ignore_title_regex: A regex pattern titles must NOT contain to be evaluated
+        :param require_title_regex: A regex pattern titles must contain to be evaluated
         :param method: How words are scored. The default, COUNT, counts the number of posts that each word
                 appears, finding the most common word. SCORE adds up the scores of every post
                 containing the word, finding the 'most liked' word.
 
-        :return: A {str:int} dictionary of how frequently words mapped to the number of titles they appeared in
+        :return: A {str:int} dictionary, whose keys are words and values are the number of titles they appeared in
         """
-        # Change searched_words to empty list
-        if searched_words is None:
-            searched_words = []
 
         # Perform search
         word_frequency = {}
-        for word in searched_words:
-            word_frequency[word.lower()] = 0
 
         for post in self.posts:
-            term_list = post.term_list(term_group)
+            term_list = post.term_list(term_group,
+                                       ignore_title_regex=ignore_title_regex,
+                                       require_title_regex=require_title_regex)
             value = post.score if method == PostCache.SCORE else 1
             for term in term_list:
                 if term in word_frequency:
                     word_frequency[term] += value
-                elif not searched_words:
+                else:
                     word_frequency[term] = value
-
-        # Remove filtered words
-        if filtered_words:
-            utils.keys_ignored(word_frequency, filtered_words)
 
         # Restore capitalization on term groups
         if term_group:
             word_frequency = {term_group.sanitize(word): freq for (word, freq) in word_frequency.items()}
 
         return word_frequency
+
+    def search_terms(self,
+                     searched_terms: [[str]],
+                     method: str = SCORE,
+                     ignore_title_regex: str = None,
+                     require_title_regex: str = None,
+                     ignore_case: bool = True) -> {str: int}:
+        """
+        Counts the frequency
+
+        :param searched_terms: List of lists, with each list being a group of words/phrases
+                (case-insensitive) to search for.
+        :param method: How words are scored. The default, COUNT, counts the number of posts that each word
+                appears, finding the most common word. SCORE adds up the scores of every post
+                containing the word, finding the 'most liked' word.
+        :param ignore_title_regex: A regex pattern titles must NOT contain to be evaluated
+        :param require_title_regex: A regex pattern titles must contain to be evaluated
+        :param ignore_case: Ignore case for term matching (default: True)
+
+        :return: A {str:int} dictionary of how frequently words mapped to the number of titles they appeared in
+        """
+        # Create regex patterns
+        search_patterns = {}
+        for group in searched_terms:
+            # Compile all terms into a `(<A>|<B>|...)` regex string
+            escaped_list = [re.escape(term).strip() for term in group]
+            flags = re.IGNORECASE if ignore_case else 0
+            search_patterns[group[0]] = re.compile('\\b({})\\b'.format("|".join(escaped_list)), flags)
+
+        # Add groups to frequency dict
+        term_frequency = {}
+        for group in search_patterns:
+            term_frequency[group] = 0
+
+        # Perform search
+        for post in self.posts:
+            # Skip title if it fails regex filter
+            if ignore_title_regex and re.search(ignore_title_regex, post.title):
+                continue
+            elif require_title_regex and re.search(require_title_regex, post.title) is None:
+                continue
+
+            # Increase the score of the groups found in the title
+            value = post.score if method == PostCache.SCORE else 1
+            for group, pattern in search_patterns.items():
+                term_frequency[group] += value if pattern.search(post.title) else 0
+
+        # Return result
+        return term_frequency
 
     def posts(self) -> list:
         """
@@ -172,7 +229,7 @@ class PostCache:
 
             if force:
                 print(f"Alert: Forcing cache refresh on {feed_name}")
-            elif (feed_age + config.cache_ttl[feed_name]) < curr_time:
+            elif (feed_age + self.ttl[feed_name]) < curr_time:
                 print(f"Alert: {feed_name} cache expired for /r/{self.subreddit} - "
                       f"Refreshing feed...")
             else:
@@ -200,6 +257,8 @@ class PostCache:
             # Update cache age
             self.feed_ages[feed_name] = curr_time
 
+        # Show cache size after refresh
+        print(f"Cached posts: {len(self.posts)}")
         return refreshed
 
     def save(self) -> None:
@@ -254,4 +313,4 @@ def validate_cache_version(seddit: str, file: str) -> bool:
         return int(file_values[0]) == int(seddit_values[0])  # Check that X values are equal
 
     except Exception as e:
-        raise ValueError(f"Unsupported cache version string: '{file}'")
+        raise ValueError(f"Unsupported cache version string: '{file}' \n{e}")

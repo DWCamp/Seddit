@@ -26,10 +26,9 @@ Pikachu
 Raichu
 Sandshrew
 Sandslash
-Nidoran♀
+Nidoran,Nidoran♂
 Nidorina
 Nidoqueen
-Nidoran♂
 Nidorino
 Nidoking
 Clefairy
@@ -80,7 +79,7 @@ Slowpoke
 Slowbro
 Magnemite
 Magneton
-Farfetch'd
+Farfetch'd,Farfetchd,Farfetch
 Doduo
 Dodrio
 Seel
@@ -119,7 +118,7 @@ Goldeen
 Seaking
 Staryu
 Starmie
-Mr. Mime
+Mr. Mime,Mr Mime
 Scyther
 Jynx
 Electabuzz
@@ -131,9 +130,6 @@ Gyarados
 Lapras
 Ditto
 Eevee,Leafeon,Vaporeon,Jolteon,Flareon,Espeon,Umbreon,Glaceon,Sylveon
-Vaporeon
-Jolteon
-Flareon
 Porygon
 Omanyte
 Omastar
@@ -193,8 +189,6 @@ Sunflora
 Yanma
 Wooper
 Quagsire
-Espeon
-Umbreon
 Murkrow
 Slowking
 Misdreavus
@@ -230,7 +224,7 @@ Houndoom
 Kingdra
 Phanpy
 Donphan
-Porygon2
+Porygon2,Porygon 2
 Stantler
 Smeargle
 Tyrogue
@@ -410,9 +404,7 @@ Rampardos
 Shieldon
 Bastiodon
 Burmy
-WormadamPlant Cloak
-WormadamSandy Cloak
-WormadamTrash Cloak
+Wormadam,Plant Cloak,Sandy Cloak,Trash Cloak
 Mothim
 Combee
 Vespiquen
@@ -438,7 +430,7 @@ Skuntank
 Bronzor
 Bronzong
 Bonsly
-Mime Jr.
+Mime Jr.,Mime Jr
 Happiny
 Chatot
 Spiritomb
@@ -469,10 +461,9 @@ Electivire
 Magmortar
 Togekiss
 Yanmega
-Glaceon
 Gliscor
 Mamoswine
-Porygon-Z
+Porygon-Z,Porygon Z
 Gallade
 Probopass
 Dusknoir
@@ -667,7 +658,7 @@ Spewpa
 Vivillon
 Litleo
 Pyroar
-Flabébé
+Flabébé,Flabebe
 Floette
 Florges
 Skiddo
@@ -698,7 +689,6 @@ Tyrunt
 Tyrantrum
 Amaura
 Aurorus
-Sylveon
 Hawlucha
 Dedenne
 Carbink
@@ -718,5 +708,6 @@ Xerneas
 Yveltal
 Zygarde
 Diancie
-HoopaHoopa
+HoopaHoopa,Hoopa Hoopa
 Volcanion
+Gender,M,F,MF,FM,MM,FF
