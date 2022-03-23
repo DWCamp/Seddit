@@ -129,6 +129,4 @@ dmypy.json
 .pyre/
 
 # Custom files
-config.py
-sedditCache.json
-alt_configs/
+config/default.ini

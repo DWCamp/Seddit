@@ -11,9 +11,10 @@ of their posts.
 
 # Libraries
 import csv
+import re
 
 
-def ingest_csv(csv_path: str, delimiter: str=',', strip_spaces: bool=True) -> [[str]]:
+def ingest_csv(csv_path: str, delimiter: str = ',', strip_spaces: bool = True) -> [[str]]:
     """
     Takes in a CSV file and returns a 2D list of the contents
 
@@ -23,7 +24,7 @@ def ingest_csv(csv_path: str, delimiter: str=',', strip_spaces: bool=True) -> [[
     :return: [[str]] - A list of rows, each of which is a list of the cells in that row
     """
     contents = []
-    with open(csv_path, newline='') as csv_file:
+    with open(csv_path, newline='', encoding='utf-8') as csv_file:
         reader = csv.reader(csv_file, delimiter=delimiter)
         for row in reader:
             if strip_spaces:
@@ -33,30 +34,63 @@ def ingest_csv(csv_path: str, delimiter: str=',', strip_spaces: bool=True) -> [[
     return contents
 
 
-def filtered_dict(dictionary: dict, threshold, invert: bool = False):
+def value_filter_dict(dictionary: dict, threshold, invert: bool = False):
     """
-    Removes all keys from a dictionary whose value is less than a given threshold
+    Creates a copy of a dictionary with all elements removed whose
+    value is less than a given threshold
 
     :param dictionary: The dictionary to filter
     :param threshold: The threshold below which to remove elements
     :param invert: Whether to invert the threshold (remove elements above threshold)
+
     :return: The filtered dictionary
     """
     return {key: value for (key, value) in dictionary.items() if (value < threshold) == invert}
 
 
-def keys_ignored(dictionary: dict, remove: [str]) -> None:
+def list_filter_dict(dictionary: dict, remove: [str]) -> {str: any}:
     """
-    Performs an in-place removal of a list of string keys from
-    a given dictionary. This check is case-insensitive
+    Performs an in-place removal of all keys from a dictionary that match
+    the provided list. This check is case-insensitive
 
     :param dictionary: The dictionary to filter
     :param remove: The keys to remove
+
+    :return: The filtered dictionary
     """
     remove = [key.lower() for key in remove]  # Make sure keys to remove are all lower
     for word in remove:
         if word in dictionary:
             del dictionary[word]
+    return dictionary
+
+
+def regex_filter_dict(dictionary: {str: any}, remove: str = None, require: str = None) -> {str: any}:
+    """
+    Takes a {str: Any} dictionary and removes all keys that don't meet the regex requirements
+
+    :param dictionary: The dictionary to filter
+    :param remove: All elements containing this pattern will be removed. If `None`,
+            all elements will be kept (Default: None)
+    :param require: All elements that do not contain this pattern will be removed.
+            If `None`, all elements will be kept. (Default: None)
+
+    :return: The filtered dictionary
+    """
+    # Abort if no filters
+    if not remove and not require:
+        return dictionary
+
+    # Perform key filter
+    for key in dictionary:
+        # Remove key if it matches regex
+        if remove and re.search(remove, key):
+            del dictionary[key]
+        # Remove key if it does not contain required regex
+        elif require and re.search(require, key) is None:
+            del dictionary[key]
+
+    return dictionary
 
 
 def sorted_dict(dictionary, reverse=True):
